@@ -1373,3 +1373,5 @@ footer .icon {
 #canvas .selected{position:absolute;top:7px;left:28px;right:15px;z-index:5;margin:0;background:#20333ef5;box-shadow:0 3px 12px #09142033}
 
 html{overflow-x:clip}body{min-width:0}.mode-card>span{min-width:0}.mode-card small{white-space:normal;word-break:keep-all;line-height:1.4}
+
+.slot-access{width:15.2%;height:14.2%}

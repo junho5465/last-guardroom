@@ -1,4 +1,16 @@
 import { UNITS, ENEMIES, PERKS, EVENTS, type Kind, type Stat } from './data';
+import {
+  floorY,
+  slotX,
+  enemyPosition,
+  distanceToEnemy,
+  enemyDistance,
+  effectiveRange,
+  BASE_SPEED,
+  WAVE_OPENING_DELAY,
+  MIN_WAVE_TIME,
+} from './map';
+export { floorY, slotX } from './map';
 export interface Unit {
   id: number;
   kind: Kind;
@@ -93,15 +105,13 @@ export const defaultProfile = (): Profile => ({
   settings: { sound: true, effects: true },
   completed: [],
 });
-export const floorY = (f: number) => 180 + f * 106;
-export const slotX = (s: number) => 74 + (s % 3) * 53;
 export class Engine {
   s: State;
   fx: FX[] = [];
   notice = '';
   noticeUntil = 0;
   paused = false;
-  speed = 1;
+  speed = BASE_SPEED;
   selected: number | null = null;
   constructor(
     public profile: Profile,
@@ -118,7 +128,7 @@ export class Engine {
       wave: 1,
       waveTime: 0,
       spawned: 0,
-      spawnClock: 3,
+      spawnClock: WAVE_OPENING_DELAY,
       gold: 650 + (profile.research.start || 0) * 30,
       hp: 300 + (profile.research.hp || 0) * 15,
       maxHp: 300 + (profile.research.hp || 0) * 15,
@@ -233,7 +243,7 @@ export class Engine {
       (i) => !s.units.some((u) => u.slot === i),
     );
     if (!empty.length) {
-      this.say('빈 방이 없습니다. 같은 생존자를 합성하세요.');
+      this.say('빈 배치 칸이 없습니다. 같은 생존자를 합성하세요.');
       return false;
     }
     const cost = free ? 0 : this.summonCost;
@@ -324,7 +334,7 @@ export class Engine {
       floorY(Math.floor(slot / 3)),
       0x82e1db,
     );
-    this.say('엘리베이터 이동 중');
+    this.say('생존자 재배치 중');
     return true;
   }
   upgrade() {
@@ -339,7 +349,8 @@ export class Engine {
     const damage = 220 * (1 + this.p('skill') + (this.profile.research.skill || 0) * 0.05);
     for (const e of this.s.enemies) {
       e.hp -= damage;
-      this.effect('blast', e.x, floorY(e.floor), 0, 0, 0xf2bd77);
+      const p = enemyPosition(e);
+      this.effect('blast', p.x, p.y, 0, 0, 0xf2bd77);
     }
     this.s.skillCd = 30 * (1 - Math.min(0.75, this.p('cooldown')));
     this.say('비상 포격!');
@@ -426,7 +437,14 @@ export class Engine {
   }
   tick(dt: number) {
     if (this.paused || this.s.phase !== 'battle') return;
-    dt = Math.min(dt, 0.1) * this.speed;
+    let remaining = Math.max(0, Math.min(dt, 0.1)) * this.speed;
+    while (remaining > 0.000001 && this.s.phase === 'battle') {
+      const step = Math.min(remaining, 0.05);
+      this.advance(step);
+      remaining -= step;
+    }
+  }
+  private advance(dt: number) {
     const s = this.s;
     s.time += dt;
     s.waveTime += dt;
@@ -441,7 +459,7 @@ export class Engine {
     s.spawnClock -= dt;
     if (s.spawned < quota && s.spawnClock <= 0) {
       this.spawn();
-      s.spawnClock = Math.max(0.6, 2.2 - s.wave * 0.045);
+      s.spawnClock = Math.max(0.45, 1.6 - s.wave * 0.045);
     }
     for (const e of s.enemies) {
       e.age += dt;
@@ -453,20 +471,22 @@ export class Engine {
       if (e.kind === 4 && e.x < 355 && e.age > e.pattern + 5) {
         e.pattern = e.age;
         this.hurt(2);
-        this.effect('shot', e.x, floorY(e.floor), 32, floorY(e.floor), 0xbb8fdd);
+        const p = enemyPosition(e);
+        this.effect('shot', p.x, p.y, 250, 65, 0xbb8fdd);
       }
       if (e.kind === 6 && e.age > e.pattern + 8) {
         e.pattern = e.age;
         this.hurt(7);
         for (const other of s.enemies)
-          if (other.kind < 6 && other.floor === e.floor)
+          if (other.kind < 6 && enemyDistance(other,e)<130)
             other.hp = Math.min(other.maxHp, other.hp + 12);
-        this.effect('ring', e.x, floorY(e.floor), 0, 0, 0xd48c70);
+        const p = enemyPosition(e);
+        this.effect('ring', p.x, p.y, 0, 0, 0xd48c70);
       }
       if (e.kind === 7 && e.age > e.pattern + 9) {
         e.pattern = e.age;
         for (const u of s.units) if (Math.floor(u.slot / 3) === e.floor) u.moving = 2.5;
-        this.effect('blast', 160, floorY(e.floor), 0, 0, 0xe77289);
+        this.effect('blast', 250, floorY(e.floor), 0, 0, 0xe77289);
       }
     }
     s.units = s.units.filter((u) => !u.expires || u.expires > s.time);
@@ -477,9 +497,9 @@ export class Engine {
       if (u.cool > 0) continue;
       const d = UNITS.find((d) => d.id === u.kind)!;
       const f = Math.floor(u.slot / 3);
-      const range = d.range * (1 + this.p('range') + 0.08 * (u.star - 1));
+      const range = effectiveRange(d.range, this.p('range'), u.star);
       let targets = s.enemies
-        .filter((e) => e.hp > 0 && e.floor === f && e.x - slotX(u.slot) < range)
+        .filter((e) => e.hp > 0 && distanceToEnemy(u.slot, e) < range)
         .sort((a, b) => a.x - b.x);
       if (!targets.length) continue;
       let attack = d.attack;
@@ -498,7 +518,7 @@ export class Engine {
       if (attack === 'chain') targets = targets.slice(0, 3 + this.p('chain'));
       else if (attack === 'multi') targets = targets.slice(0, 2 + this.p('drone'));
       else if (attack === 'burn')
-        targets = targets.filter((e) => Math.abs(e.x - first.x) < 55 * (1 + this.p('fireRange')));
+        targets = targets.filter((e) => enemyDistance(e, first) < 65 * (1 + this.p('fireRange')));
       else if (attack !== 'pierce') targets = [first];
       for (const e of targets) {
         const armor = Math.max(
@@ -516,21 +536,21 @@ export class Engine {
           e.dot = damage * 0.23 * (1 + this.p(attack === 'burn' ? 'burn' : 'poison'));
           e.dotTime = 3;
         }
-        this.effect(attack, slotX(u.slot), floorY(f) - 13, e.x, floorY(f) - 8, d.color);
+        const target = enemyPosition(e);
+        this.effect(attack, slotX(u.slot), floorY(f) - 13, target.x, target.y - 8, d.color);
         this.effect(
           'text',
-          e.x,
-          floorY(f) - 30,
-          e.x,
-          floorY(f) - 50,
+          target.x,
+          target.y - 30,
+          target.x,
+          target.y - 50,
           d.color,
           Math.round(hit).toString(),
         );
       }
       if (this.p('splash') > 0 && attack === 'single')
         for (const e of s.enemies)
-          if (e.floor === f && e.id !== first.id && Math.abs(e.x - first.x) < 45)
-            e.hp -= damage * this.p('splash');
+          if (e.id !== first.id && enemyDistance(e, first) < 55) e.hp -= damage * this.p('splash');
       u.cool =
         (d.interval /
           (1 + this.p('speed') + 0.05 * (u.star - 1)) /
@@ -541,8 +561,10 @@ export class Engine {
       s.support -= dt;
       for (const e of s.enemies) {
         e.hp -= 45 * dt;
-        if (Math.floor(s.time * 5) !== Math.floor((s.time - dt) * 5))
-          this.effect('shot', e.x - 20, 90, e.x, floorY(e.floor), 0x8be9d0);
+        if (Math.floor(s.time * 5) !== Math.floor((s.time - dt) * 5)) {
+          const p = enemyPosition(e);
+          this.effect('shot', p.x - 20, 45, p.x, p.y, 0x8be9d0);
+        }
       }
     }
     const alive: Enemy[] = [];
@@ -558,15 +580,17 @@ export class Engine {
           s.pendingBoss = Math.round(gold);
           this.say('보스 격파! +' + Math.round(gold) + 'G');
         }
-        this.effect('death', e.x, floorY(e.floor), 0, 0, ENEMIES[e.kind].color);
+        const p = enemyPosition(e);
+        this.effect('death', p.x, p.y, 0, 0, ENEMIES[e.kind].color);
       } else if (e.x < 34) {
         this.hurt(ENEMIES[e.kind].damage);
-        this.effect('blast', 30, floorY(e.floor), 0, 0, 0xf17a7e);
+        const p = enemyPosition(e);
+        this.effect('blast', p.x, p.y, 0, 0, 0xf17a7e);
       } else alive.push(e);
     }
     s.enemies = alive;
     if (s.phase !== 'battle') return;
-    if (s.spawned >= quota && !s.enemies.length && s.waveTime >= 24) {
+    if (s.spawned >= quota && !s.enemies.length && s.waveTime >= MIN_WAVE_TIME) {
       if (s.wave >= 20 && s.mode === 'normal') {
         s.phase = 'won';
         return;
@@ -575,7 +599,7 @@ export class Engine {
       s.wave++;
       s.waveTime = 0;
       s.spawned = 0;
-      s.spawnClock = 3;
+      s.spawnClock = WAVE_OPENING_DELAY;
       s.rush = s.pendingRush || 0;
       s.pendingRush = 0;
       s.gold += 80 + s.wave * 5;

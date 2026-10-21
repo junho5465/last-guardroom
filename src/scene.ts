@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import { Engine, floorY, slotX } from './engine';
 import { UNITS, ENEMIES } from './data';
 import { asset } from './icons';
+import { enemyPosition, distanceToEnemy, effectiveRange, ROUTE, ROUTE_LENGTH } from './map';
 
 /** Texture-backed art; the simulation remains independent of the renderer. */
 export class BattleScene extends Phaser.Scene {
@@ -16,13 +17,13 @@ export class BattleScene extends Phaser.Scene {
     super('battle');
   }
   preload() {
-    this.load.svg('apartment', asset('apartment.svg'), { width: 1000, height: 1180 });
+    this.load.svg('courtyard', asset('courtyard.svg'), { width: 1000, height: 1180 });
     for (const d of UNITS) this.load.image(d.id, asset(d.id + '.webp'));
     for (let i = 0; i < ENEMIES.length; i++)
       this.load.image('enemy-' + i, asset('enemy-' + i + '.webp'));
   }
   create() {
-    this.add.image(0, 0, 'apartment').setOrigin(0).setDisplaySize(500, 590);
+    this.add.image(0, 0, 'courtyard').setOrigin(0).setDisplaySize(500, 590);
     this.g = this.add.graphics().setDepth(1);
     this.input.on('pointerup', (p: Phaser.Input.Pointer) => {
       const s = this.hitSlot(p.x, p.y);
@@ -31,7 +32,7 @@ export class BattleScene extends Phaser.Scene {
   }
   private hitSlot(x: number, y: number) {
     for (let i = 0; i < 12; i++)
-      if (Math.abs(x - slotX(i)) < 25 && Math.abs(y - floorY(Math.floor(i / 3))) < 42) return i;
+      if (Math.abs(x - slotX(i)) < 38 && Math.abs(y - floorY(Math.floor(i / 3))) < 42) return i;
     return -1;
   }
   private text(x: number, y: number, t: string, size = 12, color = '#b9c8c7', bold = false) {
@@ -68,7 +69,8 @@ export class BattleScene extends Phaser.Scene {
       .setVisible(true)
       .setAlpha(1)
       .clearTint()
-      .setAngle(0);
+      .setAngle(0)
+      .setFlipX(false);
   }
   private line(x: number, y: number, tx: number, ty: number, c: number, width = 1, a = 1) {
     this.g.lineStyle(width, c, a);
@@ -90,8 +92,14 @@ export class BattleScene extends Phaser.Scene {
         const x = slotX(u.slot),
           y = floorY(Math.floor(u.slot / 3));
         if (e.selected === u.id) {
+          const d = UNITS.find((d) => d.id === u.kind)!;
+          const range = effectiveRange(d.range, e.p('range'), u.star);
+          this.g.lineStyle(1, 0xbad9cf, 0.3);
+          this.g.strokeCircle(x, y, range);
+          this.g.fillStyle(0x7cbaa3, 0.035);
+          this.g.fillCircle(x, y, range);
           this.g.fillStyle(0xeed098, 0.12);
-          this.g.fillRoundedRect(x - 25, y - 41, 50, 78, 5);
+          this.g.fillRoundedRect(x - 38, y - 40, 76, 80, 10);
           this.g.lineStyle(1.5, 0xf1cd86);
           this.g.strokeRoundedRect(x - 25, y - 41, 50, 78, 5);
         }
@@ -107,9 +115,13 @@ export class BattleScene extends Phaser.Scene {
           u.kind,
           x,
           y + 24 + Math.sin(e.s.time * 2.6 + u.id) * 0.7,
-          57,
-          71,
+          64,
+          80,
         );
+        const target = [...e.s.enemies].sort(
+          (a, b) => distanceToEnemy(u.slot, a) - distanceToEnemy(u.slot, b),
+        )[0];
+        if (target) image.setFlipX(enemyPosition(target).x < x);
         if (u.moving > 0) {
           image.setAlpha(0.35);
           this.text(x - 10, y - 8, '이동', 10, '#c7d8d4', true);
@@ -120,18 +132,20 @@ export class BattleScene extends Phaser.Scene {
       }
       for (const m of e.s.enemies) {
         const boss = m.kind >= 6;
-        const y = floorY(m.floor);
+        const position = enemyPosition(m);
+        const y = position.y,
+          ex = position.x;
         const b = Math.sin(e.s.time * 6 + m.id) * 1.1;
-        this.sprite('enemy-' + m.kind, m.x, y + 25 + b, boss ? 91 : 55, boss ? 102 : 67).setAngle(
-          Math.sin(e.s.time * 4 + m.id) * (m.kind === 5 ? 4 : 1),
-        );
+        this.sprite('enemy-' + m.kind, ex, y + 23 + b, boss ? 88 : 50, boss ? 98 : 62)
+          .setFlipX(ex < 250)
+          .setAngle(Math.sin(e.s.time * 4 + m.id) * (m.kind === 5 ? 4 : 1));
         const width = boss ? 66 : 34;
         const by = y - (boss ? 76 : 45);
         this.g.fillStyle(0x10232d, 0.9);
-        this.g.fillRoundedRect(m.x - width / 2 - 1, by - 1, width + 2, 6, 3);
+        this.g.fillRoundedRect(ex - width / 2 - 1, by - 1, width + 2, 6, 3);
         this.g.fillStyle(boss ? 0xe3a18c : 0x9ebc9c);
-        this.g.fillRoundedRect(m.x - width / 2, by, width * Math.max(0, m.hp / m.maxHp), 4, 2);
-        if (boss) this.text(m.x - 34, by - 17, ENEMIES[m.kind].name, 10, '#efd1af', true);
+        this.g.fillRoundedRect(ex - width / 2, by, width * Math.max(0, m.hp / m.maxHp), 4, 2);
+        if (boss) this.text(ex - 34, by - 17, ENEMIES[m.kind].name, 10, '#efd1af', true);
       }
       for (const f of e.fx) {
         const a = f.life / f.maxLife;
@@ -153,9 +167,7 @@ export class BattleScene extends Phaser.Scene {
             );
           }
         } else if (f.type === 'lift') {
-          this.line(f.x, f.y, 245, f.y, f.color, 2, a);
-          this.line(245, f.y, 245, f.ty, f.color, 3, a);
-          this.line(245, f.ty, f.tx, f.ty, f.color, 2, a);
+          this.line(f.x, f.y, f.tx, f.ty, f.color, 2, a);
         } else {
           const p = 1 - a;
           this.line(f.x, f.y, f.tx, f.ty, f.color, f.type === 'snipe' ? 2 : 1, a * 0.35);

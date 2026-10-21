@@ -188,7 +188,7 @@ export const PERKS: Perk[] = [
   { id: 'boss', name: '대형 표적', desc: '보스에게 주는 피해 +25%', value: 0.25 },
   { id: 'skill', name: '지원 포격', desc: '긴급 스킬 피해 +40%', value: 0.4 },
   { id: 'cooldown', name: '무전 중계기', desc: '긴급 스킬 대기시간 20% 감소', value: 0.2 },
-  { id: 'elevator', name: '급행 운행', desc: '엘리베이터 대기시간 30% 감소', value: 0.3 },
+  { id: 'elevator', name: '신속 재배치', desc: '생존자 재배치 대기시간 30% 감소', value: 0.3 },
   { id: 'range', name: '고배율 렌즈', desc: '전체 사거리 +20%', value: 0.2 },
   { id: 'regen', name: '수리 드론', desc: '매초 내구도 0.6 회복', value: 0.6 },
   { id: 'start', name: '비상 금고', desc: '즉시 400골드 지급', value: 400 },

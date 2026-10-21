@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import './style.css';
 import { icon, asset } from './icons';
+import { BASE_SPEED, FAST_SPEED } from './map';
 import { Engine, buyResearch, floorY, slotX, type State } from './engine';
 import { BattleScene } from './scene';
 import { LocalRepository } from './storage';
@@ -16,7 +17,7 @@ let adBusy = false;
 let audio: AudioContext | null = null;
 let lastKills = 0;
 const app = document.querySelector<HTMLDivElement>('#app')!;
-app.innerHTML = `<main class="shell"><header class="top"><a class="wordmark" href="#" id="brand" aria-label="로비로 돌아가기"><span class="brand-symbol">${icon('shield')}</span><span>최후의 경비실<small>101동 경비본부</small></span></a><button class="icon-btn" id="settings" aria-label="설정">${icon('settings')}</button></header><section id="hud" hidden><div class="hud-top"><div class="wave"><span class="wave-label">방어 웨이브</span><strong id="wave">01</strong><span id="wave-total">/ 20</span></div><div class="resources"><span class="resource" title="보유 골드" aria-label="보유 골드">${icon('coin')}<b id="gold"></b></span><span class="resource power-resource" title="전투력" aria-label="전투력">${icon('bolt')}<b id="power"></b></span></div></div><div class="integrity-label"><span>${icon('shield')} 건물 내구도</span><b id="hp-text"></b></div><div class="hp"><div id="hp-fill"></div></div></section><section id="stage"><div id="canvas" hidden><div id="slot-controls" class="slot-controls"></div><div class="selected" id="selected" hidden></div></div><div class="lobby" id="lobby"><section class="key-art" aria-label="청솔아파트 야간 경비"><img class="hero-art" src="${asset('lobby-night.webp')}" alt="불 켜진 경비실 앞에서 무전기를 든 경비실장" fetchpriority="high"><div class="hero-shade"></div><div class="hero-copy"><span class="chapter">청솔아파트 · 첫 번째 밤</span><h1>최후의<br><span>경비실</span></h1><p>모두가 떠난 도시.<br>우리에겐 지켜야 할 집이 있다.</p></div><div class="location-tag">${icon('flag')}<span>101동, 마지막 방어선</span><span class="location-rule"></span></div></section><div class="lobby-bottom"><div class="section-heading"><h2>오늘 밤의 작전</h2><span>소환 · 합성 · 진화</span></div><div class="modes"><div class="mode-card active"><span class="mode-symbol">${icon('shield')}</span><span><b>일반 경비</b><small>20웨이브 방어</small></span><span class="mode-check">${icon('check')}</span></div><button id="endless" class="mode-card locked">${icon('lock')}<span><b>무한 경비</b><small>일반 경비 클리어 후 개방</small></span></button></div><button class="primary start-button" id="start">${icon('play')}<span>경비 시작</span>${icon('arrow')}</button><button class="continue" id="continue" hidden><span>진행 중인 경비 이어하기 <small id="current-run"></small></span>${icon('chevron')}</button><div class="lobby-nav"><button id="research"><span class="nav-art research-art">${icon('flask')}</span><span><b>연구소</b><small id="points"></small></span>${icon('chevron')}</button><button id="collection"><span class="nav-art collection-art">${icon('people')}</span><span><b>생존자 도감</b><small>8명의 생존자</small></span>${icon('chevron')}</button></div><div class="record"><span>${icon('trophy')} 최고 기록 <b id="best"></b></span><span>방어 성공 <b id="wins"></b></span></div></div></div></section><section class="battle-controls" id="controls" hidden><div class="hint" id="hint"></div><div class="action-grid"><button id="summon" class="primary summon-action"><span class="action-icon">${icon('people')}</span><span>생존자 소환<small id="summon-cost"></small></span></button><button id="upgrade" class="secondary"><span class="action-icon">${icon('upgrade')}</span><span>전원 강화<small id="upgrade-cost"></small></span></button><button id="skill" class="skill"><span class="action-icon">${icon('target')}</span><span>비상 포격<small id="skill-cd"></small></span></button></div><div class="toolbar"><button id="pause">${icon('pause')}<span>일시정지</span></button><button id="speed"><b>1×</b><span>전투 속도</span></button><button id="support">${icon('radio')}<span>지원 요청</span></button><button id="home">${icon('home')}<span>로비</span></button></div><div id="toast" role="status" aria-live="polite"></div></section><footer>${icon('check')} 기록은 자동으로 저장됩니다</footer></main><div id="modal" class="modal" hidden></div>`;
+app.innerHTML = `<main class="shell"><header class="top"><a class="wordmark" href="#" id="brand" aria-label="로비로 돌아가기"><span class="brand-symbol">${icon('shield')}</span><span>최후의 경비실<small>101동 경비본부</small></span></a><button class="icon-btn" id="settings" aria-label="설정">${icon('settings')}</button></header><section id="hud" hidden><div class="hud-top"><div class="wave"><span class="wave-label">방어 웨이브</span><strong id="wave">01</strong><span id="wave-total">/ 20</span></div><div class="resources"><span class="resource" title="보유 골드" aria-label="보유 골드">${icon('coin')}<b id="gold"></b></span><span class="resource power-resource" title="전투력" aria-label="전투력">${icon('bolt')}<b id="power"></b></span></div></div><div class="integrity-label"><span>${icon('shield')} 건물 내구도</span><b id="hp-text"></b></div><div class="hp"><div id="hp-fill"></div></div></section><section id="stage"><div id="canvas" hidden><div id="slot-controls" class="slot-controls"></div><div class="selected" id="selected" hidden></div></div><div class="lobby" id="lobby"><section class="key-art" aria-label="청솔아파트 야간 경비"><img class="hero-art" src="${asset('lobby-night.webp')}" alt="불 켜진 경비실 앞에서 무전기를 든 경비실장" fetchpriority="high"><div class="hero-shade"></div><div class="hero-copy"><span class="chapter">청솔아파트 · 첫 번째 밤</span><h1>최후의<br><span>경비실</span></h1><p>모두가 떠난 도시.<br>우리에겐 지켜야 할 집이 있다.</p></div><div class="location-tag">${icon('flag')}<span>101동, 마지막 방어선</span><span class="location-rule"></span></div></section><div class="lobby-bottom"><div class="section-heading"><h2>오늘 밤의 작전</h2><span>소환 · 합성 · 진화</span></div><div class="modes"><div class="mode-card active"><span class="mode-symbol">${icon('shield')}</span><span><b>일반 경비</b><small>20웨이브 방어</small></span><span class="mode-check">${icon('check')}</span></div><button id="endless" class="mode-card locked">${icon('lock')}<span><b>무한 경비</b><small>일반 경비 클리어 후 개방</small></span></button></div><button class="primary start-button" id="start">${icon('play')}<span>경비 시작</span>${icon('arrow')}</button><button class="continue" id="continue" hidden><span>진행 중인 경비 이어하기 <small id="current-run"></small></span>${icon('chevron')}</button><div class="lobby-nav"><button id="research"><span class="nav-art research-art">${icon('flask')}</span><span><b>연구소</b><small id="points"></small></span>${icon('chevron')}</button><button id="collection"><span class="nav-art collection-art">${icon('people')}</span><span><b>생존자 도감</b><small>8명의 생존자</small></span>${icon('chevron')}</button></div><div class="record"><span>${icon('trophy')} 최고 기록 <b id="best"></b></span><span>방어 성공 <b id="wins"></b></span></div></div></div></section><section class="battle-controls" id="controls" hidden><div class="hint" id="hint"></div><div class="action-grid"><button id="summon" class="primary summon-action"><span class="action-icon">${icon('people')}</span><span>생존자 소환<small id="summon-cost"></small></span></button><button id="upgrade" class="secondary"><span class="action-icon">${icon('upgrade')}</span><span>전원 강화<small id="upgrade-cost"></small></span></button><button id="skill" class="skill"><span class="action-icon">${icon('target')}</span><span>비상 포격<small id="skill-cd"></small></span></button></div><div class="toolbar"><button id="pause">${icon('pause')}<span>일시정지</span></button><button id="speed"><b>2×</b><span>전투 속도</span></button><button id="support">${icon('radio')}<span>지원 요청</span></button><button id="home">${icon('home')}<span>로비</span></button></div><div id="toast" role="status" aria-live="polite"></div></section><footer>${icon('check')} 기록은 자동으로 저장됩니다</footer></main><div id="modal" class="modal" hidden></div>`;
 const $ = (id: string) => document.getElementById(id)!;
 const scene = new BattleScene();
 const game = new Phaser.Game({
@@ -42,10 +43,10 @@ $('slot-controls').innerHTML = Array.from(
     '%;top:' +
     floorY(Math.floor(i / 3)) / 5.9 +
     '%" aria-label="' +
-    (4 - Math.floor(i / 3)) +
-    '층 ' +
+    (Math.floor(i / 3)+1) +
+    '행 ' +
     ((i % 3) + 1) +
-    '번 빈 방"></button>',
+    '열 빈 칸"></button>',
 ).join('');
 for (const b of document.querySelectorAll<HTMLButtonElement>('.slot-access'))
   b.onclick = () => scene.onSlot(Number(b.dataset.slot));
@@ -125,7 +126,7 @@ function syncView() {
   $('endless').classList.toggle('locked', !profile.wins);
   if (engine) $('current-run').textContent = engine.s.wave + '웨이브';
   $('pause').innerHTML = icon('pause') + '<span>일시정지</span>';
-  $('speed').innerHTML = '<b>' + (engine?.speed || 1) + '×</b><span>전투 속도</span>';
+  $('speed').innerHTML = '<b>' + (engine?.speed || BASE_SPEED) + '×</b><span>전투 속도</span>';
   updateSelected();
   if (engine) engine.paused = !battle;
   save();
@@ -190,7 +191,7 @@ bind('skill', () => {
 });
 bind('speed', () => {
   if (engine) {
-    engine.speed = engine.speed === 1 ? 2 : 1;
+    engine.speed = engine.speed === BASE_SPEED ? FAST_SPEED : BASE_SPEED;
     $('speed').innerHTML = '<b>' + engine.speed + '×</b><span>전투 속도</span>';
   }
 });
@@ -231,7 +232,7 @@ function updateSelected() {
   const match = e.s.units.some(
     (b) => b.id !== u.id && b.kind === u.kind && b.star === u.star && !b.evolution && !b.moving,
   );
-  panel.innerHTML = `<div class="selected-identity"><span class="selected-portrait"><img src="${asset(d.id + '.webp')}" alt=""></span><span><b>${d.name} <em>${'★'.repeat(u.star)}</em></b><small>${u.evolution ? EVOLUTIONS.find((x) => x.id === u.evolution)?.name : d.skill}</small></span></div><div class="selected-actions"><button id="merge" ${match && !u.evolution && u.star < 5 && !e.paused ? '' : 'disabled'}>${icon('merge')}합성</button><button id="evolve" ${u.star >= 3 && d.evolvable && !u.evolution && !e.paused ? '' : 'disabled'}>${icon('spark')}진화</button><button id="deselect" aria-label="선택 해제">${icon('close')}</button></div><p>${4 - Math.floor(u.slot / 3)}층 배치 · 빈 방을 누르면 이동 <span id="elevator-status">승강기 ${e.s.elevatorCd > 0 ? Math.ceil(e.s.elevatorCd) + '초' : '준비 완료'}</span></p>`;
+  panel.innerHTML = `<div class="selected-identity"><span class="selected-portrait"><img src="${asset(d.id + '.webp')}" alt=""></span><span><b>${d.name} <em>${'★'.repeat(u.star)}</em></b><small>${u.evolution ? EVOLUTIONS.find((x) => x.id === u.evolution)?.name : d.skill}</small></span></div><div class="selected-actions"><button id="merge" ${match && !u.evolution && u.star < 5 && !e.paused ? '' : 'disabled'}>${icon('merge')}합성</button><button id="evolve" ${u.star >= 3 && d.evolvable && !u.evolution && !e.paused ? '' : 'disabled'}>${icon('spark')}진화</button><button id="deselect" aria-label="선택 해제">${icon('close')}</button></div><p>${Math.floor(u.slot / 3) + 1}행 ${(u.slot % 3) + 1}열 배치 · 빈 칸을 누르면 이동 <span id="elevator-status">재배치 ${e.s.elevatorCd > 0 ? Math.ceil(e.s.elevatorCd) + '초' : '준비 완료'}</span></p>`;
   bind('merge', () => {
     if (e.merge(u.id)) beep(950);
     save();
@@ -344,7 +345,7 @@ bind('settings', () => {
       (profile.settings.sound ? 'checked' : '') +
       '></label><label class="toggle">타격 연출 <input id="effects-setting" type="checkbox" ' +
       (profile.settings.effects ? 'checked' : '') +
-      '></label><div class="help"><b>경비 매뉴얼</b><p>생존자는 같은 층의 적을 자동 공격합니다. 같은 종류·같은 별 2명을 합성하세요. 경비원·소방관·전기기사는 3성부터 진화합니다.</p><p>선택한 생존자는 빈 방을 눌러 이동합니다. 5웨이브마다 강화가 열립니다. 비상 포격으로 위기를 넘기세요.</p><p>진행 상황은 이 브라우저에 자동 저장됩니다. 브라우저 데이터를 지우면 기록도 지워집니다.</p></div>',
+      '></label><div class="help"><b>경비 매뉴얼</b><p>생존자는 사거리 안의 적을 자동 공격합니다. 적은 외곽 통로를 따라 경비실로 접근합니다. 같은 종류·같은 별 2명을 합성하세요. 경비원·소방관·전기기사는 3성부터 진화합니다.</p><p>선택한 생존자는 빈 칸을 눌러 이동합니다. 5웨이브마다 강화가 열립니다. 비상 포격으로 위기를 넘기세요.</p><p>진행 상황은 이 브라우저에 자동 저장됩니다. 브라우저 데이터를 지우면 기록도 지워집니다.</p></div>',
   );
   $('sound-setting').onchange = () => {
     profile.settings.sound = ($('sound-setting') as HTMLInputElement).checked;
@@ -563,7 +564,7 @@ function refreshSelection() {
   const status = document.getElementById('elevator-status');
   if (status)
     status.textContent =
-      '승강기 ' + (e.s.elevatorCd > 0 ? Math.ceil(e.s.elevatorCd) + '초' : '준비 완료');
+      '재배치 ' + (e.s.elevatorCd > 0 ? Math.ceil(e.s.elevatorCd) + '초' : '준비 완료');
 }
 function update() {
   if (view !== 'battle' || !engine) return;
@@ -591,7 +592,7 @@ function update() {
       ? '정전 중 · 전기기사 공격속도 감소 ' + Math.ceil(s.blackout) + '초'
       : s.support > 0
         ? '지원 헬기 사격 중 · ' + Math.ceil(s.support) + '초'
-        : '생존자를 선택 → 합성 · 진화 · 빈 방으로 층 이동';
+        : '생존자를 선택 → 합성 · 진화 · 빈 칸으로 재배치';
   if (lastKills < s.kills) {
     beep(150 + Math.random() * 130);
     lastKills = s.kills;
@@ -600,10 +601,10 @@ function update() {
   for (const button of document.querySelectorAll<HTMLButtonElement>('.slot-access')) {
     const slot = Number(button.dataset.slot);
     const u = s.units.find((u) => u.slot === slot);
-    const name = u ? UNITS.find((d) => d.id === u.kind)!.name + ' ' + u.star + '성' : '빈 방';
+    const name = u ? UNITS.find((d) => d.id === u.kind)!.name + ' ' + u.star + '성' : '빈 칸';
     button.setAttribute(
       'aria-label',
-      4 - Math.floor(slot / 3) + '층 ' + ((slot % 3) + 1) + '번 ' + name,
+      Math.floor(slot / 3) + 1 + '행 ' + ((slot % 3) + 1) + '열 ' + name,
     );
     button.setAttribute('aria-pressed', String(!!u && e.selected === u.id));
   }

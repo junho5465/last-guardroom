@@ -81,7 +81,7 @@ describe('전투 무결성', () => {
         id: 99,
         kind: 0,
         floor: 0,
-        x: 210,
+        x: 442,
         hp: 20,
         maxHp: 20,
         dot: 0,
