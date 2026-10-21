@@ -6,11 +6,15 @@
     "strict": true,
     "lib": [
       "ES2022",
-      "DOM"
+      "DOM",
+      "DOM.Iterable"
     ],
     "esModuleInterop": true,
     "skipLibCheck": true,
-    "noEmit": true
+    "noEmit": true,
+    "types": [
+      "vite/client"
+    ]
   },
   "include": [
     "src",

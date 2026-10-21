@@ -1,23 +1,187 @@
 import Phaser from 'phaser';
-import {Engine,floorY,slotX} from './engine';
-import {UNITS,ENEMIES} from './data';
+import { Engine, floorY, slotX } from './engine';
+import { UNITS, ENEMIES } from './data';
+import { asset } from './icons';
+
+/** Texture-backed art; the simulation remains independent of the renderer. */
 export class BattleScene extends Phaser.Scene {
- engine:Engine|null=null;g!:Phaser.GameObjects.Graphics;labels:Phaser.GameObjects.Text[]=[];labelIndex=0;onSlot:(slot:number)=>void=()=>{};dragSlot=-1;
- constructor(){super('battle');}
- create(){this.g=this.add.graphics();this.input.on('pointerdown',(p:Phaser.Input.Pointer)=>{this.dragSlot=this.hitSlot(p.x,p.y);});this.input.on('pointerup',(p:Phaser.Input.Pointer)=>{const target=this.hitSlot(p.x,p.y);if(target>=0)this.onSlot(target);this.dragSlot=-1;});}
- hitSlot(x:number,y:number){for(let i=0;i<12;i++)if(Math.abs(x-slotX(i))<24&&Math.abs(y-floorY(Math.floor(i/3)))<34)return i;return -1;}
- text(x:number,y:number,t:string,size=12,color='#b7c7cb',bold=false){let o=this.labels[this.labelIndex++];if(!o){o=this.add.text(x,y,t,{fontFamily:'Arial, sans-serif',fontSize:size,color});this.labels.push(o);}o.setPosition(x,y).setText(t).setFontSize(size).setColor(color).setFontStyle(bold?'bold':'normal').setVisible(true).setAlpha(1);return o;}
- rect(x:number,y:number,w:number,h:number,c:number,a=1,r=0){this.g.fillStyle(c,a);if(r)this.g.fillRoundedRect(x,y,w,h,r);else this.g.fillRect(x,y,w,h);}
- line(x:number,y:number,tx:number,ty:number,c:number,width=1,a=1){this.g.lineStyle(width,c,a);this.g.lineBetween(x,y,tx,ty);}
- circle(x:number,y:number,r:number,c:number,a=1){this.g.fillStyle(c,a);this.g.fillCircle(x,y,r);}
- update(_time:number,delta:number){const e=this.engine;if(e)e.tick(delta/1000);this.g.clear();this.labelIndex=0;const t=e?.s.time??_time/1000;this.drawWorld(t);if(e){for(const u of e.s.units){const d=UNITS.find(d=>d.id===u.kind)!;this.unit(slotX(u.slot),floorY(Math.floor(u.slot/3)),d.color,u.kind,u.star,u.evolution,u.moving,t,u.id===e.selected);}for(const m of e.s.enemies){this.enemy(m.x,floorY(m.floor),m.kind,m.hp/m.maxHp,t+m.id);}
- for(const f of e.fx){const a=f.life/f.maxLife;if(f.type==='text'){this.text(f.x,f.y-(1-a)*23,f.text||'',12,'#ffdf9a',true).setAlpha(a);continue;}if(['ring','death','blast'].includes(f.type)){this.g.lineStyle(f.type==='blast'?5:2,f.color,a);this.g.strokeCircle(f.x,f.y,(1-a)*45+5);for(let i=0;i<6;i++){const ang=i*Math.PI/3;this.circle(f.x+Math.cos(ang)*(1-a)*36,f.y+Math.sin(ang)*(1-a)*36,3*a,f.color,a);}}else if(f.type==='lift'){this.line(f.x,f.y,f.tx,f.ty,f.color,5,a);}else {const p=1-a;this.line(f.x,f.y,f.tx,f.ty,f.color,f.type==='snipe'?3:1,a*.6);this.circle(Phaser.Math.Linear(f.x,f.tx,p),Phaser.Math.Linear(f.y,f.ty,p),f.type==='burn'?7:3,f.color,a);if(f.type==='chain'){this.line(f.tx-8,f.ty-16,f.tx+5,f.ty,f.color,3,a);this.line(f.tx+5,f.ty,f.tx-4,f.ty+14,f.color,3,a);}}}
- if(e.s.support>0){this.rect(300+Math.sin(t)*55,49,56,15,0x8ec9b3,1,7);this.line(280+Math.sin(t)*55,42,375+Math.sin(t)*55,42,0xc7d7d0,2);this.line(327+Math.sin(t)*55,42,327+Math.sin(t)*55,50,0xc7d7d0,2);}
- }else {['guard','fire','electric','sniper'].forEach((kind,i)=>{const d=UNITS.find(d=>d.id===kind)!;this.unit(74+i%2*53,floorY(Math.floor(i/2)+1),d.color,kind,1,undefined,0,t,false);});[0,1,2,4].forEach((k,i)=>this.enemy(365+Math.sin(t*.5+i)*20,floorY(i),k,1,t+i));}
- for(let i=this.labelIndex;i<this.labels.length;i++)this.labels[i].setVisible(false);}
- drawWorld(t:number){this.rect(0,0,500,650,0x14232c);this.circle(402,43,26,0xa5b8b1,.3);this.circle(393,36,25,0x14232c);for(let i=0;i<17;i++){const x=i*34;const h=30+(i*37)%71;this.rect(x,115-h,28,h,0x1b3038);for(let j=0;j<3;j++)this.rect(x+5+j*7,120-h,3,5,0xe7c780,.13);}this.line(0,88,500,102,0x354951);this.rect(24,105,248,469,0x0e191f,1,4);this.rect(32,99,238,16,0x526467,1,2);this.rect(43,76,112,23,0x283e43,1,2);this.text(52,81,'청솔아파트  101',12,'#c5d4c8',true);this.rect(224,115,39,450,0x263a3e);for(let i=0;i<4;i++){const y=floorY(i);this.rect(34,y-45,188,83,0x283c42,1,3);this.rect(34,y-45,188,5,0x3e5357);this.rect(35,y+38,233,10,0x6a7471);this.rect(35,y+48,233,4,0x0b151a);this.text(5,y-2,(4-i)+'F',12,'#899f9f',true);this.rect(232,y-32,21,61,0x12262d,1,2);this.line(242,y-32,242,y+29,0x587274);this.circle(258,y-2,2,0xe8c57f);for(let j=0;j<3;j++){const s=i*3+j;const x=slotX(s);this.rect(x-22,y-28,44,57,0x14282f,1,4);this.rect(x-19,y+26,38,3,0x617773,.5);this.line(x-5,y+4,x+5,y+4,0x496063);this.line(x,y-1,x,y+9,0x496063);if(this.engine?.selected&&this.engine.s.units.find(u=>u.id===this.engine!.selected)?.slot===s){this.g.lineStyle(2,0xf6d48d);this.g.strokeRoundedRect(x-23,y-30,46,61,5);} }this.rect(278,y+28,222,9,0x364448);for(let k=0;k<8;k++)this.rect(282+k*29,y+33,14,3,0x63716e,.5);this.line(282,y+2,500,y+2,0x435258,1,.25);this.text(291,y-42,'침입 경로 / '+(4-i)+'F',9,'#617b7d');}
- this.rect(22,578,255,20,0x263d40);this.rect(45,566,90,14,0x405c58);this.text(52,568,'LAST SAFE HOUSE',8,'#bbd2c5',true);for(let i=0;i<8;i++){this.rect(295+i*27,585+(i%3)*8,9,4,0x4b5857);}
- for(let i=0;i<17;i++){const x=(i*91+Math.sin(t*.12+i)*12)%500;const y=(i*53+t*4)%620;this.circle(x,y,1,0xb7d6bd,.17);}this.text(23,617,'SECTOR 07  /  NIGHT WATCH',9,'#66827e');this.text(382,617,'SEOUL · 03:47',9,'#66827e');}
- unit(x:number,y:number,c:number,kind:string,star:number,evo:string|undefined,moving:number,t:number,selected:boolean){if(moving>0){this.circle(x,y,21,0x92dacf,.12);this.text(x-12,y-5,'이동',10,'#9ee8d5');return;}const bob=Math.sin(t*3+x)*1.1;this.circle(x,y+24,17,0x061318,.4);if(evo){this.g.lineStyle(2,evo==='flame'?0xf5a56c:evo==='shield'?0x9dd4e5:0xe7ce81,.65);this.g.strokeCircle(x,y-1,23);}this.rect(x-10,y+5+bob,8,16,0x10232b,1,3);this.rect(x+2,y+5+bob,8,16,0x10232b,1,3);this.rect(x-13,y-10+bob,26,23,c,1,6);this.rect(x-5,y-7+bob,10,15,0x24414b,.65,2);this.circle(x,y-21+bob,10,0xe3b997);this.rect(x-11,y-30+bob,22,9,c,1,4);this.rect(x-12,y-24+bob,25,3,0x172f39);this.rect(x-4,y-23+bob,14,4,0x273d42,1,2);this.rect(x+8,y-8+bob,17,7,0x15303b,1,2);this.rect(x+20,y-7+bob,12,3,0xb4c7c4);if(kind==='fire'){this.rect(x-18,y-7,7,19,0xc9714f,1,3);this.circle(x+31,y-5,3,0xf7ae64);}if(kind==='electric'){this.line(x+23,y-11,x+30,y-4,0xffe486,2);this.line(x+30,y-4,x+24,y+2,0xffe486,2);}if(kind==='sniper')this.rect(x+19,y-8,22,3,0xb7c8c6);if(kind==='drone'){this.rect(x-7,y-47+Math.sin(t*7)*2,14,5,0x90e4ca,1,2);this.line(x-16,y-46,x+16,y-46,0x97ddce,2);}if(kind==='chemist')this.circle(x+27,y-5,5,0xb6e27d);if(kind==='agent')this.rect(x-14,y-13,29,23,0x313d4e,.7,3);this.text(x-star*3,y+28,'★'.repeat(star),9,evo?'#ffd88c':'#9cb9bf',true);if(selected)this.circle(x,y+48,3,0xffd98f);}
- enemy(x:number,y:number,kind:number,hp:number,t:number){const d=ENEMIES[kind];const boss=kind>=6;const scale=boss?1.7:1;const b=Math.sin(t*5)*2;this.circle(x,y+24,17*scale,0x07131a,.4);if(kind===5){this.line(x,y-20,x-25,y-30+Math.sin(t*9)*8,d.color,7);this.line(x,y-20,x+25,y-30-Math.sin(t*9)*8,d.color,7);}this.rect(x-10*scale,y+3,7*scale,20,d.color,1,2);this.rect(x+3*scale,y+3,7*scale,20,0x526968,1,2);this.rect(x-13*scale,y-19*scale+b,26*scale,29*scale,d.color,1,7);this.circle(x,y-27*scale+b,11*scale,d.color);this.rect(x-9*scale,y-27*scale+b,5*scale,3,0xf4ce88);this.rect(x+3*scale,y-27*scale+b,5*scale,3,0xf4ce88);this.rect(x-7,y-19*scale+b,12,3,0x263d3d);this.line(x-10*scale,y-10,x-24*scale,y-7,d.color,7*scale);this.line(x+10*scale,y-10,x+20*scale,y+5,d.color,7*scale);if(kind===2)this.rect(x-15,y-16,30,18,0x617b8b,1,4);if(kind===3){this.circle(x,y-4,9,0xeaa371);this.circle(x,y-4,4,0xf7d193);}if(boss){this.line(x-12,y-47,x-23,y-62,d.color,7);this.line(x+12,y-47,x+23,y-62,d.color,7);this.text(x-36,y-80,d.name,10,'#eeaa92',true);}const w=boss?57:29;this.rect(x-w/2,y-(boss?67:45),w,4,0x10232a,1,2);this.rect(x-w/2,y-(boss?67:45),w*Math.max(0,hp),4,boss?0xed8f88:0x9ac6a2,1,2);}
+  engine: Engine | null = null;
+  private g!: Phaser.GameObjects.Graphics;
+  private labels: Phaser.GameObjects.Text[] = [];
+  private sprites: Phaser.GameObjects.Image[] = [];
+  private labelIndex = 0;
+  private spriteIndex = 0;
+  onSlot: (slot: number) => void = () => {};
+  constructor() {
+    super('battle');
+  }
+  preload() {
+    this.load.svg('apartment', asset('apartment.svg'), { width: 1000, height: 1180 });
+    for (const d of UNITS) this.load.image(d.id, asset(d.id + '.webp'));
+    for (let i = 0; i < ENEMIES.length; i++)
+      this.load.image('enemy-' + i, asset('enemy-' + i + '.webp'));
+  }
+  create() {
+    this.add.image(0, 0, 'apartment').setOrigin(0).setDisplaySize(500, 590);
+    this.g = this.add.graphics().setDepth(1);
+    this.input.on('pointerup', (p: Phaser.Input.Pointer) => {
+      const s = this.hitSlot(p.x, p.y);
+      if (s >= 0) this.onSlot(s);
+    });
+  }
+  private hitSlot(x: number, y: number) {
+    for (let i = 0; i < 12; i++)
+      if (Math.abs(x - slotX(i)) < 25 && Math.abs(y - floorY(Math.floor(i / 3))) < 42) return i;
+    return -1;
+  }
+  private text(x: number, y: number, t: string, size = 12, color = '#b9c8c7', bold = false) {
+    let o = this.labels[this.labelIndex++];
+    if (!o) {
+      o = this.add.text(x, y, t, {
+        fontFamily: 'Pretendard,Arial,sans-serif',
+        fontSize: size,
+        color,
+      });
+      o.setDepth(4);
+      this.labels.push(o);
+    }
+    return o
+      .setPosition(x, y)
+      .setText(t)
+      .setFontSize(size)
+      .setColor(color)
+      .setFontStyle(bold ? 'bold' : 'normal')
+      .setVisible(true)
+      .setAlpha(1);
+  }
+  private sprite(key: string, x: number, y: number, w: number, h: number) {
+    let o = this.sprites[this.spriteIndex++];
+    if (!o) {
+      o = this.add.image(x, y, key).setDepth(2);
+      this.sprites.push(o);
+    }
+    return o
+      .setTexture(key)
+      .setPosition(x, y)
+      .setDisplaySize(w, h)
+      .setOrigin(0.5, 0.92)
+      .setVisible(true)
+      .setAlpha(1)
+      .clearTint()
+      .setAngle(0);
+  }
+  private line(x: number, y: number, tx: number, ty: number, c: number, width = 1, a = 1) {
+    this.g.lineStyle(width, c, a);
+    this.g.lineBetween(x, y, tx, ty);
+  }
+  private circle(x: number, y: number, r: number, c: number, a = 1) {
+    this.g.fillStyle(c, a);
+    this.g.fillCircle(x, y, r);
+  }
+  update(_now: number, delta: number) {
+    const e = this.engine;
+    if (e) e.tick(delta / 1000);
+    if (!this.g) return;
+    this.g.clear();
+    this.labelIndex = 0;
+    this.spriteIndex = 0;
+    if (e) {
+      for (const u of e.s.units) {
+        const x = slotX(u.slot),
+          y = floorY(Math.floor(u.slot / 3));
+        if (e.selected === u.id) {
+          this.g.fillStyle(0xeed098, 0.12);
+          this.g.fillRoundedRect(x - 25, y - 41, 50, 78, 5);
+          this.g.lineStyle(1.5, 0xf1cd86);
+          this.g.strokeRoundedRect(x - 25, y - 41, 50, 78, 5);
+        }
+        if (u.evolution) {
+          this.g.lineStyle(
+            1.5,
+            u.evolution === 'flame' ? 0xe6a06d : u.evolution === 'shield' ? 0x9ac6d2 : 0xdec682,
+            0.8,
+          );
+          this.g.strokeEllipse(x, y + 21, 44, 13);
+        }
+        const image = this.sprite(
+          u.kind,
+          x,
+          y + 24 + Math.sin(e.s.time * 2.6 + u.id) * 0.7,
+          57,
+          71,
+        );
+        if (u.moving > 0) {
+          image.setAlpha(0.35);
+          this.text(x - 10, y - 8, '이동', 10, '#c7d8d4', true);
+        }
+        if (u.evolution === 'flame') image.setTint(0xffdab1);
+        const stars = '★'.repeat(u.star);
+        this.text(x - u.star * 3.5, y + 30, stars, 10, u.evolution ? '#eed095' : '#acbdb7', true);
+      }
+      for (const m of e.s.enemies) {
+        const boss = m.kind >= 6;
+        const y = floorY(m.floor);
+        const b = Math.sin(e.s.time * 6 + m.id) * 1.1;
+        this.sprite('enemy-' + m.kind, m.x, y + 25 + b, boss ? 91 : 55, boss ? 102 : 67).setAngle(
+          Math.sin(e.s.time * 4 + m.id) * (m.kind === 5 ? 4 : 1),
+        );
+        const width = boss ? 66 : 34;
+        const by = y - (boss ? 76 : 45);
+        this.g.fillStyle(0x10232d, 0.9);
+        this.g.fillRoundedRect(m.x - width / 2 - 1, by - 1, width + 2, 6, 3);
+        this.g.fillStyle(boss ? 0xe3a18c : 0x9ebc9c);
+        this.g.fillRoundedRect(m.x - width / 2, by, width * Math.max(0, m.hp / m.maxHp), 4, 2);
+        if (boss) this.text(m.x - 34, by - 17, ENEMIES[m.kind].name, 10, '#efd1af', true);
+      }
+      for (const f of e.fx) {
+        const a = f.life / f.maxLife;
+        if (f.type === 'text') {
+          this.text(f.x - 5, f.y - (1 - a) * 18, f.text || '', 12, '#ffe1a6', true).setAlpha(a);
+          continue;
+        }
+        if (['ring', 'death', 'blast'].includes(f.type)) {
+          this.g.lineStyle(f.type === 'blast' ? 4 : 2, f.color, a);
+          this.g.strokeCircle(f.x, f.y, (1 - a) * 30 + 5);
+          for (let i = 0; i < 5; i++) {
+            const ang = i * Math.PI * 0.4;
+            this.circle(
+              f.x + Math.cos(ang) * (1 - a) * 30,
+              f.y + Math.sin(ang) * (1 - a) * 23,
+              2.5 * a,
+              f.color,
+              a,
+            );
+          }
+        } else if (f.type === 'lift') {
+          this.line(f.x, f.y, 245, f.y, f.color, 2, a);
+          this.line(245, f.y, 245, f.ty, f.color, 3, a);
+          this.line(245, f.ty, f.tx, f.ty, f.color, 2, a);
+        } else {
+          const p = 1 - a;
+          this.line(f.x, f.y, f.tx, f.ty, f.color, f.type === 'snipe' ? 2 : 1, a * 0.35);
+          this.circle(
+            Phaser.Math.Linear(f.x, f.tx, p),
+            Phaser.Math.Linear(f.y, f.ty, p),
+            f.type === 'burn' ? 6 : 2.5,
+            f.color,
+            a,
+          );
+          if (f.type === 'chain') {
+            this.line(f.tx - 7, f.ty - 14, f.tx + 4, f.ty, f.color, 2, a);
+            this.line(f.tx + 4, f.ty, f.tx - 4, f.ty + 12, f.color, 2, a);
+          }
+        }
+      }
+      if (e.s.support > 0) {
+        const x = 342 + Math.sin(e.s.time) * 55;
+        this.g.fillStyle(0x94aeac);
+        this.g.fillRoundedRect(x, 41, 43, 13, 6);
+        this.line(x - 15, 35, x + 58, 35, 0xc6d4ca, 2);
+        this.line(x + 20, 35, x + 20, 42, 0xc6d4ca, 2);
+        this.line(x, 47, x - 15, 42, 0x94aeac, 5);
+      }
+    }
+    for (let i = this.labelIndex; i < this.labels.length; i++) this.labels[i].setVisible(false);
+    for (let i = this.spriteIndex; i < this.sprites.length; i++) this.sprites[i].setVisible(false);
+  }
 }

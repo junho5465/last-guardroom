@@ -2,6 +2,8 @@
 
 마지막 아파트 101동을 지키는 모바일 세로형 랜덤 소환·합성 디펜스. TypeScript + Phaser 3 + Vite.
 
+0.2: 전용 로비 일러스트, 생존자·적·보스 16종 전투 아트, 모바일 UI를 개편했습니다. 디자인 변경은 [DESIGN.md](DESIGN.md)를 참고하세요.
+
 ## 실행
 
 - 웹 플레이: https://junho5465.github.io/last-guardroom/
