@@ -3,6 +3,6 @@ export default defineConfig({
  appName:'last-guardroom',
  brand:{primaryColor:'#14232c'},
  permissions:[],
- webView:{},
+ webView:{bounces:false,pullToRefreshEnabled:false,allowsBackForwardNavigationGestures:false},
  webBundleDir:'dist',
 });
