@@ -96,6 +96,7 @@ export interface State {
   pendingBoss: number;
   free: number;
   seed: number;
+  autoSummon?: boolean;
   autoMerge?: boolean;
   autoUpgrade?: boolean;
 }
@@ -341,8 +342,9 @@ export class Engine {
     this.say('생존자 판매 · +' + gold + 'G');
     return true;
   }
-  setAutomation(kind: 'merge' | 'upgrade', enabled: boolean) {
-    if (kind === 'merge') this.s.autoMerge = enabled;
+  setAutomation(kind: 'summon' | 'merge' | 'upgrade', enabled: boolean) {
+    if (kind === 'summon') this.s.autoSummon = enabled;
+    else if (kind === 'merge') this.s.autoMerge = enabled;
     else this.s.autoUpgrade = enabled;
   }
   private autoClock = 0;
@@ -369,6 +371,9 @@ export class Engine {
           break;
         }
       }
+    }
+    if (this.s.autoSummon && this.s.units.length < 12 && this.s.gold >= this.summonCost) {
+      this.summon();
     }
     if (this.s.autoUpgrade) {
       const reserve = this.s.units.length < 12 ? this.summonCost : 0;

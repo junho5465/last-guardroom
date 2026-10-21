@@ -458,14 +458,17 @@ bind('automation', () => {
   const e = engine;
   if (!e) return;
   dismissible(
-    '자동 강화',
-    '<p>반복 조작을 줄여 전투에 집중하세요.</p><label class="toggle">같은 유닛 자동 합성<input id="auto-merge" type="checkbox" ' +
+    '자동 전투 설정',
+    '<p>각 기능을 따로 켜고 끌 수 있습니다. 설정은 이번 경비에 저장됩니다.</p><label class="toggle">빈 칸에 자동 소환<input id="auto-summon" type="checkbox" ' +
+      (e.s.autoSummon ? 'checked' : '') +
+      '></label><label class="toggle">같은 유닛 자동 합성<input id="auto-merge" type="checkbox" ' +
       (e.s.autoMerge ? 'checked' : '') +
       '></label><label class="toggle">골드로 전원 자동 강화<input id="auto-upgrade" type="checkbox" ' +
       (e.s.autoUpgrade ? 'checked' : '') +
-      '></label><p>진화 가능한 3성 유닛은 자동 합성하지 않습니다. 빈 칸이 있으면 소환 1회분의 골드를 남기고 강화합니다. 직접 소환과 진화 선택은 유지됩니다.</p>',
+      '></label><p>진화 가능한 3성 유닛은 자동 합성하지 않습니다. 빈 칸이 있으면 소환 1회분의 골드를 남기고 강화합니다. 자동 소환은 무료 횟수부터 사용하고 이후 골드를 소비합니다. 칸이나 골드가 부족하면 기다렸다가 다시 소환합니다. 합성 → 소환 → 강화 순서로 작동하며, 진화는 직접 선택합니다.</p>',
   );
   for (const [id, kind] of [
+    ['auto-summon', 'summon'],
     ['auto-merge', 'merge'],
     ['auto-upgrade', 'upgrade'],
   ] as const)
@@ -677,9 +680,9 @@ function update() {
   ($('upgrade') as HTMLButtonElement).disabled = s.gold < e.upgradeCost || e.paused;
   ($('skill') as HTMLButtonElement).disabled = s.skillCd > 0 || e.paused;
   $('toast').textContent = e.noticeUntil > s.time ? e.notice : '';
-  $('automation').classList.toggle('automation-on', !!s.autoMerge || !!s.autoUpgrade);
+  $('automation').classList.toggle('automation-on', !!s.autoSummon || !!s.autoMerge || !!s.autoUpgrade);
   $('automation').innerHTML =
-    icon('upgrade') + '<span>자동강화 ' + (s.autoMerge || s.autoUpgrade ? 'ON' : 'OFF') + '</span>';
+    icon('upgrade') + '<span>자동 설정 ' + (s.autoSummon || s.autoMerge || s.autoUpgrade ? 'ON' : 'OFF') + '</span>';
   $('hint').textContent = e.paused
     ? '경비 일시정지 · 계속하기를 눌러 재개하세요.'
     : s.blackout > 0
