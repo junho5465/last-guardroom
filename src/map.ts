@@ -47,3 +47,6 @@ export const BASE_SPEED = 2;
 export const FAST_SPEED = 4;
 export const WAVE_OPENING_DELAY = 0.75;
 export const MIN_WAVE_TIME = 12;
+
+/** User-visible multipliers are relative to the faster baseline. */
+export const speedLabel = (speed: number) => speed / BASE_SPEED;

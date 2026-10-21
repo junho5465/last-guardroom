@@ -7,6 +7,7 @@ import { enemyPosition, distanceToEnemy, effectiveRange, ROUTE, ROUTE_LENGTH } f
 /** Texture-backed art; the simulation remains independent of the renderer. */
 export class BattleScene extends Phaser.Scene {
   engine: Engine | null = null;
+  draggingId: number | null = null;
   private g!: Phaser.GameObjects.Graphics;
   private labels: Phaser.GameObjects.Text[] = [];
   private sprites: Phaser.GameObjects.Image[] = [];
@@ -17,6 +18,7 @@ export class BattleScene extends Phaser.Scene {
     super('battle');
   }
   preload() {
+    this.load.image('support-helicopter', asset('support-helicopter.webp'));
     this.load.svg('courtyard', asset('courtyard.svg'), { width: 1000, height: 1180 });
     for (const d of UNITS) this.load.image(d.id, asset(d.id + '.webp'));
     for (let i = 0; i < ENEMIES.length; i++)
@@ -25,10 +27,6 @@ export class BattleScene extends Phaser.Scene {
   create() {
     this.add.image(0, 0, 'courtyard').setOrigin(0).setDisplaySize(500, 590);
     this.g = this.add.graphics().setDepth(1);
-    this.input.on('pointerup', (p: Phaser.Input.Pointer) => {
-      const s = this.hitSlot(p.x, p.y);
-      if (s >= 0) this.onSlot(s);
-    });
   }
   private hitSlot(x: number, y: number) {
     for (let i = 0; i < 12; i++)
@@ -122,6 +120,7 @@ export class BattleScene extends Phaser.Scene {
           (a, b) => distanceToEnemy(u.slot, a) - distanceToEnemy(u.slot, b),
         )[0];
         if (target) image.setFlipX(enemyPosition(target).x < x);
+        if (this.draggingId === u.id) image.setAlpha(0.3);
         if (u.moving > 0) {
           image.setAlpha(0.35);
           this.text(x - 10, y - 8, '이동', 10, '#c7d8d4', true);
@@ -185,12 +184,12 @@ export class BattleScene extends Phaser.Scene {
         }
       }
       if (e.s.support > 0) {
-        const x = 342 + Math.sin(e.s.time) * 55;
-        this.g.fillStyle(0x94aeac);
-        this.g.fillRoundedRect(x, 41, 43, 13, 6);
-        this.line(x - 15, 35, x + 58, 35, 0xc6d4ca, 2);
-        this.line(x + 20, 35, x + 20, 42, 0xc6d4ca, 2);
-        this.line(x, 47, x - 15, 42, 0x94aeac, 5);
+        const x = 265 + Math.sin(e.s.time * .7) * 90, y = 60 + Math.sin(e.s.time * 2) * 2;
+        this.g.fillStyle(0xf5e4a6, .055);
+        this.g.fillTriangle(x - 40, y + 15, x - 100, 280, x + 30, 280);
+        this.sprite('support-helicopter', x, y, 152, 95).setOrigin(.5, .5);
+        this.line(x - 55, y - 28, x + 60, y - 28, 0xc3ceba, 1, .3 + Math.sin(e.s.time * 60) * .2);
+        this.text(x - 35, y + 47, '지원 사격 · ' + Math.ceil(e.s.support) + 's', 10, '#efd5a3', true);
       }
     }
     for (let i = this.labelIndex; i < this.labels.length; i++) this.labels[i].setVisible(false);

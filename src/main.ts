@@ -1,9 +1,10 @@
 import Phaser from 'phaser';
 import './style.css';
 import { icon, asset } from './icons';
-import { BASE_SPEED, FAST_SPEED } from './map';
+import { BASE_SPEED, FAST_SPEED, speedLabel } from './map';
 import { Engine, buyResearch, floorY, slotX, type State } from './engine';
 import { BattleScene } from './scene';
+import { bindBoardInput } from './board-input';
 import { LocalRepository } from './storage';
 import { UNITS, RARITIES, RESEARCH, PERKS, EVOLUTIONS, EVENTS, type Stat } from './data';
 import { platform } from './platform';
@@ -16,8 +17,9 @@ let modalKey = '';
 let adBusy = false;
 let audio: AudioContext | null = null;
 let lastKills = 0;
+const art = (name: string, cls = 'dialog-art') => '<img class="' + cls + '" src="' + asset('support-' + name + '.webp') + '" alt="">';
 const app = document.querySelector<HTMLDivElement>('#app')!;
-app.innerHTML = `<main class="shell"><header class="top"><a class="wordmark" href="#" id="brand" aria-label="로비로 돌아가기"><span class="brand-symbol">${icon('shield')}</span><span>최후의 경비실<small>101동 경비본부</small></span></a><button class="icon-btn" id="settings" aria-label="설정">${icon('settings')}</button></header><section id="hud" hidden><div class="hud-top"><div class="wave"><span class="wave-label">방어 웨이브</span><strong id="wave">01</strong><span id="wave-total">/ 20</span></div><div class="resources"><span class="resource" title="보유 골드" aria-label="보유 골드">${icon('coin')}<b id="gold"></b></span><span class="resource power-resource" title="전투력" aria-label="전투력">${icon('bolt')}<b id="power"></b></span></div></div><div class="integrity-label"><span>${icon('shield')} 건물 내구도</span><b id="hp-text"></b></div><div class="hp"><div id="hp-fill"></div></div></section><section id="stage"><div id="canvas" hidden><div id="slot-controls" class="slot-controls"></div><div class="selected" id="selected" hidden></div></div><div class="lobby" id="lobby"><section class="key-art" aria-label="청솔아파트 야간 경비"><img class="hero-art" src="${asset('lobby-night.webp')}" alt="불 켜진 경비실 앞에서 무전기를 든 경비실장" fetchpriority="high"><div class="hero-shade"></div><div class="hero-copy"><span class="chapter">청솔아파트 · 첫 번째 밤</span><h1>최후의<br><span>경비실</span></h1><p>모두가 떠난 도시.<br>우리에겐 지켜야 할 집이 있다.</p></div><div class="location-tag">${icon('flag')}<span>101동, 마지막 방어선</span><span class="location-rule"></span></div></section><div class="lobby-bottom"><div class="section-heading"><h2>오늘 밤의 작전</h2><span>소환 · 합성 · 진화</span></div><div class="modes"><div class="mode-card active"><span class="mode-symbol">${icon('shield')}</span><span><b>일반 경비</b><small>20웨이브 방어</small></span><span class="mode-check">${icon('check')}</span></div><button id="endless" class="mode-card locked">${icon('lock')}<span><b>무한 경비</b><small>일반 경비 클리어 후 개방</small></span></button></div><button class="primary start-button" id="start">${icon('play')}<span>경비 시작</span>${icon('arrow')}</button><button class="continue" id="continue" hidden><span>진행 중인 경비 이어하기 <small id="current-run"></small></span>${icon('chevron')}</button><div class="lobby-nav"><button id="research"><span class="nav-art research-art">${icon('flask')}</span><span><b>연구소</b><small id="points"></small></span>${icon('chevron')}</button><button id="collection"><span class="nav-art collection-art">${icon('people')}</span><span><b>생존자 도감</b><small>8명의 생존자</small></span>${icon('chevron')}</button></div><div class="record"><span>${icon('trophy')} 최고 기록 <b id="best"></b></span><span>방어 성공 <b id="wins"></b></span></div></div></div></section><section class="battle-controls" id="controls" hidden><div class="hint" id="hint"></div><div class="action-grid"><button id="summon" class="primary summon-action"><span class="action-icon">${icon('people')}</span><span>생존자 소환<small id="summon-cost"></small></span></button><button id="upgrade" class="secondary"><span class="action-icon">${icon('upgrade')}</span><span>전원 강화<small id="upgrade-cost"></small></span></button><button id="skill" class="skill"><span class="action-icon">${icon('target')}</span><span>비상 포격<small id="skill-cd"></small></span></button></div><div class="toolbar"><button id="pause">${icon('pause')}<span>일시정지</span></button><button id="speed"><b>2×</b><span>전투 속도</span></button><button id="support">${icon('radio')}<span>지원 요청</span></button><button id="home">${icon('home')}<span>로비</span></button></div><div id="toast" role="status" aria-live="polite"></div></section><footer>${icon('check')} 기록은 자동으로 저장됩니다</footer></main><div id="modal" class="modal" hidden></div>`;
+app.innerHTML = `<main class="shell"><header class="top"><a class="wordmark" href="#" id="brand" aria-label="로비로 돌아가기"><span class="brand-symbol">${icon('shield')}</span><span>최후의 경비실<small>101동 경비본부</small></span></a><button class="icon-btn" id="settings" aria-label="설정">${icon('settings')}</button></header><section id="hud" hidden><div class="hud-top"><div class="wave"><span class="wave-label">방어 웨이브</span><strong id="wave">01</strong><span id="wave-total">/ 20</span></div><div class="resources"><span class="resource" title="보유 골드" aria-label="보유 골드">${icon('coin')}<b id="gold"></b></span><span class="resource power-resource" title="전투력" aria-label="전투력">${icon('bolt')}<b id="power"></b></span></div></div><div class="integrity-label"><span>${icon('shield')} 건물 내구도</span><b id="hp-text"></b></div><div class="hp"><div id="hp-fill"></div></div></section><section id="stage"><div id="canvas" hidden><div id="slot-controls" class="slot-controls"></div><div class="selected" id="selected" hidden></div></div><div class="lobby" id="lobby"><section class="key-art" aria-label="청솔아파트 야간 경비"><img class="hero-art" src="${asset('lobby-night.webp')}" alt="불 켜진 경비실 앞에서 무전기를 든 경비실장" fetchpriority="high"><div class="hero-shade"></div><div class="hero-copy"><span class="chapter">청솔아파트 · 첫 번째 밤</span><h1>최후의<br><span>경비실</span></h1><p>모두가 떠난 도시.<br>우리에겐 지켜야 할 집이 있다.</p></div><div class="location-tag">${icon('flag')}<span>101동, 마지막 방어선</span><span class="location-rule"></span></div></section><div class="lobby-bottom"><div class="section-heading"><h2>오늘 밤의 작전</h2><span>소환 · 합성 · 진화</span></div><div class="modes"><div class="mode-card active"><span class="mode-symbol">${icon('shield')}</span><span><b>일반 경비</b><small>20웨이브 방어</small></span><span class="mode-check">${icon('check')}</span></div><button id="endless" class="mode-card locked">${icon('lock')}<span><b>무한 경비</b><small>일반 경비 클리어 후 개방</small></span></button></div><button class="primary start-button" id="start">${icon('play')}<span>경비 시작</span>${icon('arrow')}</button><button class="continue" id="continue" hidden><span>진행 중인 경비 이어하기 <small id="current-run"></small></span>${icon('chevron')}</button><div class="lobby-nav"><button id="research"><span class="nav-art research-art">${art('research', 'nav-prop')}</span><span><b>연구소</b><small id="points"></small></span>${icon('chevron')}</button><button id="collection"><span class="nav-art collection-art">${icon('people')}</span><span><b>생존자 도감</b><small>8명의 생존자</small></span>${icon('chevron')}</button></div><div class="record"><span>${icon('trophy')} 최고 기록 <b id="best"></b></span><span>방어 성공 <b id="wins"></b></span></div></div></div></section><section class="battle-controls" id="controls" hidden><div class="hint" id="hint"></div><div class="action-grid"><button id="summon" class="primary summon-action"><span class="action-icon">${icon('people')}</span><span>생존자 소환<small id="summon-cost"></small></span></button><button id="upgrade" class="secondary"><span class="action-icon">${icon('upgrade')}</span><span>전원 강화<small id="upgrade-cost"></small></span></button><button id="skill" class="skill"><span class="action-icon">${icon('target')}</span><span>비상 포격<small id="skill-cd"></small></span></button></div><div class="toolbar"><button id="pause">${icon('pause')}<span>일시정지</span></button><button id="speed"><b>1×</b><span>전투 속도</span></button><button id="automation">${icon('upgrade')}<span>자동강화</span></button><button id="support">${icon('radio')}<span>지원 요청</span></button><button id="home">${icon('home')}<span>로비</span></button></div><div id="toast" role="status" aria-live="polite"></div></section><footer>${icon('check')} 기록은 자동으로 저장됩니다</footer></main><div id="modal" class="modal" hidden></div>`;
 const $ = (id: string) => document.getElementById(id)!;
 const scene = new BattleScene();
 const game = new Phaser.Game({
@@ -43,13 +45,11 @@ $('slot-controls').innerHTML = Array.from(
     '%;top:' +
     floorY(Math.floor(i / 3)) / 5.9 +
     '%" aria-label="' +
-    (Math.floor(i / 3)+1) +
+    (Math.floor(i / 3) + 1) +
     '행 ' +
     ((i % 3) + 1) +
     '열 빈 칸"></button>',
 ).join('');
-for (const b of document.querySelectorAll<HTMLButtonElement>('.slot-access'))
-  b.onclick = () => scene.onSlot(Number(b.dataset.slot));
 
 function save() {
   data.profile = profile;
@@ -126,7 +126,8 @@ function syncView() {
   $('endless').classList.toggle('locked', !profile.wins);
   if (engine) $('current-run').textContent = engine.s.wave + '웨이브';
   $('pause').innerHTML = icon('pause') + '<span>일시정지</span>';
-  $('speed').innerHTML = '<b>' + (engine?.speed || BASE_SPEED) + '×</b><span>전투 속도</span>';
+  $('speed').innerHTML =
+    '<b>' + speedLabel(engine?.speed || BASE_SPEED) + '×</b><span>전투 속도</span>';
   updateSelected();
   if (engine) engine.paused = !battle;
   save();
@@ -192,7 +193,7 @@ bind('skill', () => {
 bind('speed', () => {
   if (engine) {
     engine.speed = engine.speed === BASE_SPEED ? FAST_SPEED : BASE_SPEED;
-    $('speed').innerHTML = '<b>' + engine.speed + '×</b><span>전투 속도</span>';
+    $('speed').innerHTML = '<b>' + speedLabel(engine.speed) + '×</b><span>전투 속도</span>';
   }
 });
 bind('pause', () => {
@@ -213,12 +214,28 @@ scene.onSlot = (slot) => {
   const u = engine.s.units.find((u) => u.slot === slot);
   if (u) engine.selected = u.id;
   else if (engine.selected !== null) {
-    engine.move(engine.selected, slot);
-    beep(350);
+    if (engine.move(engine.selected, slot)) beep(350);
     save();
   }
   updateSelected();
 };
+bindBoardInput({
+  board: $('canvas'),
+  root: $('slot-controls'),
+  getEngine: () => engine,
+  enabled: () => view === 'battle' && $('modal').hidden,
+  tap: (slot) => scene.onSlot(slot),
+  changed: () => {
+    save();
+    updateSelected();
+    update();
+    beep(900);
+  },
+  dragging: (id) => {
+    scene.draggingId = id;
+    if (engine) engine.interactionUnit = id;
+  },
+});
 function updateSelected() {
   const e = engine;
   const panel = $('selected');
@@ -230,13 +247,47 @@ function updateSelected() {
   const d = UNITS.find((d) => d.id === u.kind)!;
   panel.hidden = false;
   const match = e.s.units.some(
-    (b) => b.id !== u.id && b.kind === u.kind && b.star === u.star && !b.evolution && !b.moving,
+    (b) => b.id !== u.id && b.kind === u.kind && b.star === u.star && !b.evolution && !b.expires && !b.moving,
   );
-  panel.innerHTML = `<div class="selected-identity"><span class="selected-portrait"><img src="${asset(d.id + '.webp')}" alt=""></span><span><b>${d.name} <em>${'★'.repeat(u.star)}</em></b><small>${u.evolution ? EVOLUTIONS.find((x) => x.id === u.evolution)?.name : d.skill}</small></span></div><div class="selected-actions"><button id="merge" ${match && !u.evolution && u.star < 5 && !e.paused ? '' : 'disabled'}>${icon('merge')}합성</button><button id="evolve" ${u.star >= 3 && d.evolvable && !u.evolution && !e.paused ? '' : 'disabled'}>${icon('spark')}진화</button><button id="deselect" aria-label="선택 해제">${icon('close')}</button></div><p>${Math.floor(u.slot / 3) + 1}행 ${(u.slot % 3) + 1}열 배치 · 빈 칸을 누르면 이동 <span id="elevator-status">재배치 ${e.s.elevatorCd > 0 ? Math.ceil(e.s.elevatorCd) + '초' : '준비 완료'}</span></p>`;
+  panel.innerHTML = `<div class="selected-identity"><span class="selected-portrait"><img src="${asset(d.id + '.webp')}" alt=""></span><span><b>${d.name} <em>${'★'.repeat(u.star)}</em></b><small>${u.evolution ? EVOLUTIONS.find((x) => x.id === u.evolution)?.name : d.skill}</small></span></div><div class="selected-actions"><button id="sell" ${e.sellValue(u.id) > 0 && !e.paused ? '' : 'disabled'}>판매</button><button id="merge" ${match && !u.evolution && !u.expires && u.star < 5 && !e.paused ? '' : 'disabled'}>${icon('merge')}합성</button><button id="evolve" ${u.star >= 3 && d.evolvable && !u.evolution && !e.paused ? '' : 'disabled'}>${icon('spark')}진화</button><button id="deselect" aria-label="선택 해제">${icon('close')}</button></div><p>${Math.floor(u.slot / 3) + 1}행 ${(u.slot % 3) + 1}열 배치 · 빈 칸을 누르면 이동 <span id="elevator-status">재배치 ${e.s.elevatorCd > 0 ? Math.ceil(e.s.elevatorCd) + '초' : '준비 완료'}</span></p>`;
   bind('merge', () => {
     if (e.merge(u.id)) beep(950);
     save();
     updateSelected();
+  });
+  bind('sell', () => {
+    const value = e.sellValue(u.id),
+      wasPaused = e.paused;
+    e.paused = true;
+    showModal(
+      '<span class="eyebrow">생존자 판매</span><h2>' +
+        d.name +
+        '을 판매할까요?</h2><div class="sell-preview"><img src="' +
+        asset(d.id + '.webp') +
+        '" alt=""><strong>+' +
+        value +
+        ' G</strong></div><p>' +
+        u.star +
+        '성 생존자가 사라지고 골드를 받습니다.' +
+        (e.s.units.length === 1 ? ' 마지막 방어 유닛입니다.' : '') +
+        '</p><button class="primary wide" id="sell-confirm">판매 · ' +
+        value +
+        ' G 받기</button><button class="quiet wide" id="sell-cancel">취소</button>',
+    );
+    bind('sell-confirm', () => {
+      e.paused = wasPaused;
+      e.sell(u.id);
+      closeModal();
+      save();
+      updateSelected();
+      update();
+      beep(480);
+    });
+    bind('sell-cancel', () => {
+      e.paused = wasPaused;
+      closeModal();
+      update();
+    });
   });
   bind('deselect', () => {
     e.selected = null;
@@ -247,7 +298,7 @@ function updateSelected() {
     showModal(
       '<span class="eyebrow">돌연변이 진화 · ' +
         d.name +
-        '</span><h2>생존의 다음 단계</h2><p>되돌릴 수 없는 진화. 새로운 능력을 선택하세요.</p>' +
+        '</span><div class="evolution-art"><img src="' + asset(d.id + '.webp') + '" alt=""></div><h2>생존의 다음 단계</h2><p>되돌릴 수 없는 진화. 새로운 능력을 선택하세요.</p>' +
         EVOLUTIONS.map(
           (v) =>
             '<button class="choice" id="evo-' +
@@ -276,10 +327,23 @@ function updateSelected() {
   });
 }
 bind('research', openResearch);
+function researchSummary(id: string, level: number) {
+  return id === 'damage'
+    ? '공격력 +' + level * 3 + '%'
+    : id === 'start'
+      ? '시작 골드 +' + level * 30
+      : id === 'hp'
+        ? '내구도 +' + level * 15
+        : id === 'gold'
+          ? '처치 골드 +' + level * 3 + '%'
+          : id === 'discount'
+            ? '소환 비용 -' + level + '%'
+            : '포격 피해 +' + level * 5 + '%';
+}
 function openResearch() {
   dismissible(
     '생존 연구소',
-    '<p>연구 포인트 <strong>' +
+    art('research', 'research-banner') + '<p>연구는 영구 능력치를 높입니다. 시작 골드·최대 내구도는 다음 경비부터 적용됩니다. 모든 연구 10레벨 달성 후 별도 해금은 없습니다.</p><p>연구 포인트 <strong>' +
       profile.points +
       ' RP</strong> · 모든 연구 최대 10레벨</p><div class="research-list">' +
       RESEARCH.map((r) => {
@@ -295,6 +359,8 @@ function openResearch() {
           n +
           '</em></b><small>' +
           r.desc +
+          ' · 현재 ' +
+          researchSummary(r.id, n) +
           '</small></span><strong>' +
           (n >= 10 ? 'MAX' : 50 + n * 35 + ' RP') +
           '</strong></button>'
@@ -345,7 +411,7 @@ bind('settings', () => {
       (profile.settings.sound ? 'checked' : '') +
       '></label><label class="toggle">타격 연출 <input id="effects-setting" type="checkbox" ' +
       (profile.settings.effects ? 'checked' : '') +
-      '></label><div class="help"><b>경비 매뉴얼</b><p>생존자는 사거리 안의 적을 자동 공격합니다. 적은 외곽 통로를 따라 경비실로 접근합니다. 같은 종류·같은 별 2명을 합성하세요. 경비원·소방관·전기기사는 3성부터 진화합니다.</p><p>선택한 생존자는 빈 칸을 눌러 이동합니다. 5웨이브마다 강화가 열립니다. 비상 포격으로 위기를 넘기세요.</p><p>진행 상황은 이 브라우저에 자동 저장됩니다. 브라우저 데이터를 지우면 기록도 지워집니다.</p></div>',
+      '></label><div class="help"><b>경비 매뉴얼</b><p>생존자는 사거리 안의 적을 자동 공격합니다. 적은 외곽 통로를 따라 경비실로 접근합니다. 같은 종류·같은 별의 생존자 위로 스와이프하면 합성됩니다. 경비원·소방관·전기기사는 3성부터 진화합니다.</p><p>선택한 생존자는 빈 칸을 눌러 이동합니다. 5웨이브마다 강화가 열립니다. 비상 포격으로 위기를 넘기세요.</p><p>진행 상황은 이 브라우저에 자동 저장됩니다. 브라우저 데이터를 지우면 기록도 지워집니다.</p></div>',
   );
   $('sound-setting').onchange = () => {
     profile.settings.sound = ($('sound-setting') as HTMLInputElement).checked;
@@ -368,7 +434,7 @@ async function ad(type: string) {
       () =>
         new Promise<boolean>((resolve) => {
           showModal(
-            '<span class="eyebrow">개발용 광고 테스트</span><h2>지원 통신 연결</h2><div class="ad-graphic"><span class="signal"></span><b>생존자 지원 센터</b><small>실제 광고가 아닌 개발용 테스트입니다.</small></div><p>테스트 완료를 누를 때만 보상이 지급됩니다. 취소하면 보상이 지급되지 않습니다.</p><button class="primary wide" id="ad-complete">테스트 완료 · 보상 받기</button><button class="quiet wide" id="ad-cancel">취소</button>',
+            '<span class="eyebrow">개발용 광고 테스트</span><h2>지원 통신 연결</h2><div class="ad-graphic">' + art('radio', 'radio-art') + '<b>생존자 지원 센터</b><small>실제 광고가 아닌 개발용 테스트입니다.</small></div><p>테스트 완료를 누를 때만 보상이 지급됩니다. 취소하면 보상이 지급되지 않습니다.</p><button class="primary wide" id="ad-complete">테스트 완료 · 보상 받기</button><button class="quiet wide" id="ad-cancel">취소</button>',
           );
           bind('ad-complete', () => resolve(true));
           bind('ad-cancel', () => resolve(false));
@@ -388,13 +454,34 @@ async function ad(type: string) {
     renderPhase();
   }
 }
+bind('automation', () => {
+  const e = engine;
+  if (!e) return;
+  dismissible(
+    '자동 강화',
+    '<p>반복 조작을 줄여 전투에 집중하세요.</p><label class="toggle">같은 유닛 자동 합성<input id="auto-merge" type="checkbox" ' +
+      (e.s.autoMerge ? 'checked' : '') +
+      '></label><label class="toggle">골드로 전원 자동 강화<input id="auto-upgrade" type="checkbox" ' +
+      (e.s.autoUpgrade ? 'checked' : '') +
+      '></label><p>진화 가능한 3성 유닛은 자동 합성하지 않습니다. 빈 칸이 있으면 소환 1회분의 골드를 남기고 강화합니다. 직접 소환과 진화 선택은 유지됩니다.</p>',
+  );
+  for (const [id, kind] of [
+    ['auto-merge', 'merge'],
+    ['auto-upgrade', 'upgrade'],
+  ] as const)
+    $(id).onchange = () => {
+      e.setAutomation(kind, ($(id) as HTMLInputElement).checked);
+      save();
+    };
+});
 bind('support', () => {
   const e = engine;
   if (!e || e.s.phase !== 'battle') return;
   dismissible(
     '생존자 지원 센터',
-    '<p>원할 때만 개발용 모의 광고를 완료하고 지원받을 수 있습니다.</p>' +
+    art('helicopter', 'support-banner') + '<p>원할 때만 개발용 모의 광고를 완료하고 지원받을 수 있습니다. 구조 부활 ' + (e.s.revived ? '사용 완료' : '1회 남음') + '</p>' +
       [
+        ['supply', '추가 보급', '250골드 지급 · 한 판 최대 3회'],
         ['hero', '영웅 지원', '전직 군인 45초 합류 · 최대 2회'],
         ['support', '긴급 헬기', '20초 지원 사격 · 최대 1회'],
         ['boss', '보스 보상 2배', '마지막 보스 골드 추가 지급 · 최대 1회'],
@@ -405,7 +492,7 @@ bind('support', () => {
             id +
             '" ' +
             (e.canAd(id) ? '' : 'disabled') +
-            '><b>' +
+            '>' + art(id === 'support' ? 'helicopter' : id === 'hero' ? 'radio' : 'crate', 'choice-thumb') + '<b>' +
             title +
             '</b><small>' +
             desc +
@@ -417,7 +504,7 @@ bind('support', () => {
         )
         .join(''),
   );
-  for (const id of ['hero', 'support', 'boss'])
+  for (const id of ['supply', 'hero', 'support', 'boss'])
     bind('ad-' + id, () => {
       e.paused = false;
       void ad(id);
@@ -472,19 +559,23 @@ function renderPhase() {
   } else if (s.phase === 'event') {
     const ev = EVENTS.find((x) => x.id === s.event)!;
     showModal(
-      '<span class="eyebrow">돌발 상황 · 무전 수신</span><h2>' +
+      art(ev.id === 'blackout' ? 'generator' : ev.id === 'helicopter' ? 'helicopter' : ev.id === 'trade' ? 'research' : ev.id === 'rush' ? 'radio' : 'crate') + '<span class="eyebrow">돌발 상황 · 무전 수신</span><h2>' +
         ev.name +
         '</h2><p>' +
         ev.desc +
         '</p><button class="primary wide" id="event-accept">' +
         (ev.id === 'supply' ? '300골드 받기' : '확인 · 진행') +
         '</button>' +
+        (e.canAd('event')
+          ? '<button class="secondary wide" id="event-ad">광고 보급 · 사건 대신 300G + 내구도 40</button>'
+          : '') +
         (ev.id === 'supply' || ev.id === 'trade'
           ? '<button class="secondary wide" id="event-alt">' +
             (ev.id === 'supply' ? '내구도 80 회복' : '거래 거절') +
             '</button>'
           : ''),
     );
+    if (e.canAd('event')) bind('event-ad', () => void ad('event'));
     bind('event-accept', () => {
       e.resolveEvent();
       closeModal();
@@ -498,7 +589,7 @@ function renderPhase() {
       });
   } else if (s.phase === 'revive') {
     showModal(
-      '<span class="eyebrow">구조 요청 · 방어선 붕괴</span><h2>아직 끝나지 않았습니다</h2><p>한 번만 내구도 50%를 회복하고 경비를 이어갈 수 있습니다.</p><button class="primary wide" id="revive">모의 광고 · 1회 구조 요청</button><button class="quiet wide" id="giveup">경비 종료</button>',
+      art('rescue', 'rescue-art') + '<span class="eyebrow">구조 요청 · 방어선 붕괴</span><h2>아직 끝나지 않았습니다</h2><p>내구도가 모두 소진됐습니다. 광고 완료 시 내구도 50%로 부활합니다. 한 판에 딱 한 번만 사용할 수 있습니다.</p><button class="primary wide" id="revive">광고 보고 부활 · 한 판 1회</button><button class="quiet wide" id="giveup">경비 종료</button>',
     );
     bind('revive', () => void ad('revive'));
     bind('giveup', () => {
@@ -517,7 +608,7 @@ function renderPhase() {
         (s.phase === 'won' ? '오늘 밤도, 살아남았다' : '당신의 경비를 기억합니다') +
         '</h2><p>' +
         (s.phase === 'won'
-          ? '101동의 불빛이 다시 켜졌습니다. 무한 경비가 개방되었습니다.'
+          ? '일반 경비 방어 성공! 무한 경비 개방 · 승리 보너스 150RP가 합산되었습니다.'
           : '연구소에서 다음 작전을 준비하세요.') +
         '</p><div class="result"><span>도달 웨이브<b>' +
         s.wave +
@@ -548,11 +639,11 @@ function refreshSelection() {
   const mergeButton = document.getElementById('merge') as HTMLButtonElement | null;
   const evolveButton = document.getElementById('evolve') as HTMLButtonElement | null;
   const match = e.s.units.some(
-    (b) => b.id !== u.id && b.kind === u.kind && b.star === u.star && !b.evolution && b.moving <= 0,
+    (b) => b.id !== u.id && b.kind === u.kind && b.star === u.star && !b.evolution && !b.expires && b.moving <= 0,
   );
   if (mergeButton)
     mergeButton.disabled =
-      !match || !!u.evolution || u.star >= 5 || u.moving > 0 || e.paused || e.s.phase !== 'battle';
+      !match || !!u.evolution || !!u.expires || u.star >= 5 || u.moving > 0 || e.paused || e.s.phase !== 'battle';
   if (evolveButton)
     evolveButton.disabled =
       u.star < 3 ||
@@ -586,13 +677,16 @@ function update() {
   ($('upgrade') as HTMLButtonElement).disabled = s.gold < e.upgradeCost || e.paused;
   ($('skill') as HTMLButtonElement).disabled = s.skillCd > 0 || e.paused;
   $('toast').textContent = e.noticeUntil > s.time ? e.notice : '';
+  $('automation').classList.toggle('automation-on', !!s.autoMerge || !!s.autoUpgrade);
+  $('automation').innerHTML =
+    icon('upgrade') + '<span>자동강화 ' + (s.autoMerge || s.autoUpgrade ? 'ON' : 'OFF') + '</span>';
   $('hint').textContent = e.paused
     ? '경비 일시정지 · 계속하기를 눌러 재개하세요.'
     : s.blackout > 0
       ? '정전 중 · 전기기사 공격속도 감소 ' + Math.ceil(s.blackout) + '초'
       : s.support > 0
         ? '지원 헬기 사격 중 · ' + Math.ceil(s.support) + '초'
-        : '생존자를 선택 → 합성 · 진화 · 빈 칸으로 재배치';
+        : '같은 유닛 위로 스와이프해 합성 · 빈 칸으로 재배치';
   if (lastKills < s.kills) {
     beep(150 + Math.random() * 130);
     lastKills = s.kills;

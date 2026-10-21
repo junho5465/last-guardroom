@@ -1,3 +1,4 @@
+import { waveBalance } from './balance';
 import { UNITS, ENEMIES, PERKS, EVENTS, type Kind, type Stat } from './data';
 import {
   floorY,
@@ -95,6 +96,8 @@ export interface State {
   pendingBoss: number;
   free: number;
   seed: number;
+  autoMerge?: boolean;
+  autoUpgrade?: boolean;
 }
 export const defaultProfile = (): Profile => ({
   version: 1,
@@ -113,6 +116,7 @@ export class Engine {
   paused = false;
   speed = BASE_SPEED;
   selected: number | null = null;
+  interactionUnit: number | null = null;
   constructor(
     public profile: Profile,
     state?: State,
@@ -281,12 +285,19 @@ export class Engine {
     this.say((def.rarity === 4 ? '전설 합류! ' : '') + def.name + ' 합류');
     return u;
   }
-  merge(id: number) {
+  merge(id: number, consumeId?: number) {
     if (this.s.phase !== 'battle' || this.paused) return false;
     const a = this.s.units.find((u) => u.id === id);
-    if (!a || a.moving > 0 || a.evolution || a.star >= 5) return false;
+    if (!a || a.moving > 0 || a.expires || a.evolution || a.star >= 5) return false;
     const b = this.s.units.find(
-      (u) => u.id !== id && u.kind === a.kind && u.star === a.star && !u.evolution && u.moving <= 0,
+      (u) =>
+        (consumeId === undefined || u.id === consumeId) &&
+        u.id !== id &&
+        u.kind === a.kind &&
+        u.star === a.star &&
+        !u.evolution &&
+        !u.expires &&
+        u.moving <= 0,
     );
     if (!b) {
       this.say('같은 생존자 · 같은 별 단계가 필요합니다.');
@@ -297,6 +308,72 @@ export class Engine {
     this.effect('ring', slotX(a.slot), floorY(Math.floor(a.slot / 3)), 0, 0, 0xffd17c);
     this.say(UNITS.find((d) => d.id === a.kind)!.name + ' ' + a.star + '성 합성!');
     return true;
+  }
+  mergeInto(sourceId: number, targetId: number) {
+    if (sourceId === targetId) return false;
+    return this.merge(targetId, sourceId);
+  }
+  sellValue(id: number) {
+    const u = this.s.units.find((u) => u.id === id);
+    if (!u || u.expires) return 0;
+    const d = UNITS.find((d) => d.id === u.kind)!;
+    return Math.round(
+      40 * [1, 1.2, 1.6, 2.4, 4][d.rarity] * Math.pow(2, u.star - 1) * (u.evolution ? 1.5 : 1),
+    );
+  }
+  sell(id: number) {
+    if (this.s.phase !== 'battle' || this.paused) return false;
+    const u = this.s.units.find((u) => u.id === id),
+      gold = this.sellValue(id);
+    if (!u || u.moving > 0 || gold <= 0) return false;
+    this.s.units = this.s.units.filter((other) => other.id !== id);
+    this.s.gold += gold;
+    if (this.selected === id) this.selected = null;
+    this.effect(
+      'text',
+      slotX(u.slot),
+      floorY(Math.floor(u.slot / 3)),
+      0,
+      0,
+      0xeed095,
+      '+' + gold + 'G',
+    );
+    this.say('생존자 판매 · +' + gold + 'G');
+    return true;
+  }
+  setAutomation(kind: 'merge' | 'upgrade', enabled: boolean) {
+    if (kind === 'merge') this.s.autoMerge = enabled;
+    else this.s.autoUpgrade = enabled;
+  }
+  private autoClock = 0;
+  private automate(dt: number) {
+    this.autoClock -= dt;
+    if (this.autoClock > 0) return;
+    this.autoClock = 0.7;
+    if (this.s.autoMerge) {
+      const candidates = [...this.s.units]
+        .filter(
+          (u) =>
+            !u.evolution &&
+            u.moving <= 0 &&
+            !u.expires &&
+            u.id !== this.interactionUnit &&
+            u.star < 5 &&
+            !(u.star >= 3 && UNITS.find((d) => d.id === u.kind)!.evolvable),
+        )
+        .sort((a, b) => a.star - b.star || a.slot - b.slot);
+      for (const a of candidates) {
+        const b = candidates.find((b) => b.id !== a.id && b.kind === a.kind && b.star === a.star);
+        if (b) {
+          this.merge(a.id, b.id);
+          break;
+        }
+      }
+    }
+    if (this.s.autoUpgrade) {
+      const reserve = this.s.units.length < 12 ? this.summonCost : 0;
+      if (this.s.gold >= this.upgradeCost + reserve) this.upgrade();
+    }
   }
   evolve(id: number, path: string) {
     if (this.s.phase !== 'battle' || this.paused || !['rapid', 'shield', 'flame'].includes(path))
@@ -404,10 +481,10 @@ export class Engine {
   spawn() {
     const s = this.s;
     const boss = s.wave % 10 === 0 && s.spawned === 0;
-    const maxKind = Math.min(6, 1 + Math.floor(s.wave / 3));
+    const maxKind = waveBalance(s.wave, s.mode).enemyKinds;
     const kind = boss ? (s.wave % 20 === 0 ? 7 : 6) : Math.floor(this.random() * maxKind);
     const d = ENEMIES[kind];
-    const scale = 1 + (s.wave - 1) * 0.105 + Math.max(0, s.wave - 20) * 0.12;
+    const scale = waveBalance(s.wave, s.mode).hp;
     const hp = d.hp * scale;
     const floor =
       s.wave % 20 === 0
@@ -447,6 +524,7 @@ export class Engine {
   private advance(dt: number) {
     const s = this.s;
     s.time += dt;
+    this.automate(dt);
     s.waveTime += dt;
     s.gold += dt * (s.time < 120 ? 7 : 4);
     s.skillCd = Math.max(0, s.skillCd - dt);
@@ -455,11 +533,11 @@ export class Engine {
     s.rushBonus = Math.max(0, s.rushBonus - dt);
     s.hp = Math.min(s.maxHp, s.hp + this.p('regen') * dt);
     this.fx = this.fx.filter((f) => (f.life -= dt) > 0);
-    const quota = 6 + Math.floor(s.wave * 0.65) + s.rush;
+    const quota = waveBalance(s.wave, s.mode).count + s.rush;
     s.spawnClock -= dt;
     if (s.spawned < quota && s.spawnClock <= 0) {
       this.spawn();
-      s.spawnClock = Math.max(0.45, 1.6 - s.wave * 0.045);
+      s.spawnClock = waveBalance(s.wave, s.mode).spawnInterval;
     }
     for (const e of s.enemies) {
       e.age += dt;
@@ -478,7 +556,7 @@ export class Engine {
         e.pattern = e.age;
         this.hurt(7);
         for (const other of s.enemies)
-          if (other.kind < 6 && enemyDistance(other,e)<130)
+          if (other.kind < 6 && enemyDistance(other, e) < 130)
             other.hp = Math.min(other.maxHp, other.hp + 12);
         const p = enemyPosition(e);
         this.effect('ring', p.x, p.y, 0, 0, 0xd48c70);
@@ -616,27 +694,37 @@ export class Engine {
     }
   }
   adLimit(type: string) {
-    return type === 'hero' || type === 'reroll' ? 2 : 1;
+    return type === 'supply' || type === 'event' ? 3 : type === 'hero' || type === 'reroll' ? 2 : 1;
   }
   canAd(type: string) {
     const s = this.s;
     if ((s.adCounts[type] || 0) >= this.adLimit(type)) return false;
-    return type === 'revive'
-      ? s.phase === 'revive' && !s.revived
-      : type === 'reroll'
-        ? s.phase === 'perk'
-        : type === 'boss'
-          ? s.phase === 'battle' && s.pendingBoss > 0
-          : type === 'hero'
-            ? s.phase === 'battle' && s.units.length < 12
-            : type === 'support'
-              ? s.phase === 'battle'
-              : false;
+    return type === 'event'
+      ? s.phase === 'event'
+      : type === 'supply'
+        ? s.phase === 'battle'
+        : type === 'revive'
+          ? s.phase === 'revive' && !s.revived
+          : type === 'reroll'
+            ? s.phase === 'perk'
+            : type === 'boss'
+              ? s.phase === 'battle' && s.pendingBoss > 0
+              : type === 'hero'
+                ? s.phase === 'battle' && s.units.length < 12
+                : type === 'support'
+                  ? s.phase === 'battle'
+                  : false;
   }
   claimAd(type: string, receipt: string) {
     if (this.s.claims.includes(receipt) || !this.canAd(type)) return false;
     this.s.claims.push(receipt);
     this.s.adCounts[type] = (this.s.adCounts[type] || 0) + 1;
+    if (type === 'supply') this.s.gold += 250;
+    if (type === 'event') {
+      this.resolveEvent('decline');
+      this.s.gold += 300;
+      this.s.hp = Math.min(this.s.maxHp, this.s.hp + 40);
+    }
     if (type === 'revive') {
       this.s.revived = true;
       this.s.hp = this.s.maxHp * 0.5;
